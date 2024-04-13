@@ -38,11 +38,11 @@ class Market(gym.Env):
         #                                   spaces.Box(low=-0.5, high=0.5, shape=(1,), dtype=np.float64),
         #                                   spaces.Box(low=-0.5, high=0.5, shape=(1,), dtype=np.float64)))
         self.action_space = spaces.Box(low=-1, high=1, shape=(4,), dtype=np.float64)
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(48,), dtype=np.float64)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(201,), dtype=np.float64)
         self.action_history = np.zeros(12)
 
     def _next_observation(self):
-        zeros_array = np.zeros(30)  # assume there are 10 features in lob_data
+        zeros_array = np.zeros(183)  # assume there are 61 features in lob_data
         frame = np.array(self.lob_data.iloc[self.current_step])
 
         if self.current_step == 0:
