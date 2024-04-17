@@ -3,8 +3,6 @@ from gymnasium import spaces
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-import os
-import random
 import logging
 
 MAX_ACCOUNT_BALANCE = 2147483647
@@ -26,11 +24,7 @@ class Market(gym.Env):
     def _get_info(self):
         return {}
 
-    def _ramdom_data(self,lobs_data_dir,tapes_data_dir):
-        data_list = list(zip(os.listdir(lobs_data_dir), os.listdir(tapes_data_dir)))
-        random_index = random.randint(0, len(data_list) - 1)
-        lob_data_dir = os.path.join(lobs_data_dir, data_list[random_index][0])
-        tape_data_dir = os.path.join(tapes_data_dir, data_list[random_index][1])
+    def _read_data(self,lob_data_dir,tape_data_dir):
         lob_data = pd.read_csv(lob_data_dir).dropna()
         self.tape_data = pd.read_csv(tape_data_dir)
 
@@ -70,9 +64,9 @@ class Market(gym.Env):
         super(Market, self).__init__()
         self.lob_data_dir = lob_data_dir
         self.tape_data_dir = tape_data_dir
-        self._ramdom_data(self.lob_data_dir,self.tape_data_dir)
+        self._read_data(self.lob_data_dir,self.tape_data_dir)
         self.render_mode = render_mode
-        self.reward_range = (0, MAX_ACCOUNT_BALANCE)
+        self.reward_range = (-1, 1)
         # 0:buy,1:sell,2:hold
         # (0 - 1) * 10 seconds
         self.action_space = spaces.Box(low=-1, high=1, shape=(6,), dtype=np.float64)
@@ -183,8 +177,8 @@ class Market(gym.Env):
 
         self.current_step += 1
 
-        if self.current_step >= len(self.lob_data):
-            self.current_step = 0
+        # if self.current_step >= len(self.lob_data):
+        #     self.current_step = 0
 
         # delay_modifier = (self.current_step / MAX_STEPS)
         # reward = self.balance * delay_modifier
@@ -199,15 +193,19 @@ class Market(gym.Env):
 
         # reward = self.balance/INITIAL_ACCOUNT_BALANCE
         delay_modifier = (self.current_step / MAX_STEPS)
-        reward = (self.balance * delay_modifier + (self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (self.balance - self.last_balance))/INITIAL_ACCOUNT_BALANCE
+        reward = (self.balance * delay_modifier + (self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (self.balance - self.last_balance))/(3 * INITIAL_ACCOUNT_BALANCE)
 
         self.reward = reward
 
-        terminated = self.current_step >= MAX_STEPS
+        terminated = False
+        if self.current_step == MAX_STEPS - 1:
+            terminated = True
+        # terminated = self.current_step >= MAX_STEPS
 
         truncated = bool(self.net_worth <= 0)
 
         obs = self._next_observation()
+
 
         return obs, reward, terminated, truncated, self._get_info()
 
@@ -225,12 +223,11 @@ class Market(gym.Env):
         self.trade_data = []
 
         self.last_balance = INITIAL_ACCOUNT_BALANCE
-        self._ramdom_data(self.lob_data_dir, self.tape_data_dir)
         return self._next_observation(), self._get_info()
 
     def render(self, close=False):
         # Render the environment to the screen
-        if self.render_mode == 'human':
+        if self.render_mode == 'human' and self.current_step > 0:
             profit = self.net_worth - INITIAL_ACCOUNT_BALANCE
 
             print(f'Step: {self.current_step}')
