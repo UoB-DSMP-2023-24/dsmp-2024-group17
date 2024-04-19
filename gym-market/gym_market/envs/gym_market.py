@@ -5,13 +5,13 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import logging
 
-MAX_ACCOUNT_BALANCE = 2147483647
+MAX_ACCOUNT_BALANCE = 30000
 
 INITIAL_ACCOUNT_BALANCE = 10000
 
 MAX_STEPS = 3000
 
-MAX_NUM_SHARES = 2147483647
+MAX_NUM_SHARES = 100
 
 MAX_SHARE_PRICE = 1000
 
@@ -24,7 +24,7 @@ class Market(gym.Env):
     def _get_info(self):
         return {}
 
-    def _read_data(self,lob_data_dir,tape_data_dir):
+    def _read_data(self, lob_data_dir, tape_data_dir):
         lob_data = pd.read_csv(lob_data_dir).dropna()
         self.tape_data = pd.read_csv(tape_data_dir)
 
@@ -64,7 +64,7 @@ class Market(gym.Env):
         super(Market, self).__init__()
         self.lob_data_dir = lob_data_dir
         self.tape_data_dir = tape_data_dir
-        self._read_data(self.lob_data_dir,self.tape_data_dir)
+        self._read_data(self.lob_data_dir, self.tape_data_dir)
         self.render_mode = render_mode
         self.reward_range = (-1, 1)
         # 0:buy,1:sell,2:hold
@@ -113,6 +113,9 @@ class Market(gym.Env):
 
         # if action_number == 0:
         #     self.sell_reward = []
+        if self.current_step == 2999 and action_number == 1:
+            action_type = 2
+            amount = self.shares_held
 
         if action_type <= 1 and self.balance >= amount * current_price:
             # buy
@@ -128,7 +131,7 @@ class Market(gym.Env):
                 self.cost_basis = 0
             self.shares_held += shares_bought
 
-        elif action_type <= 2 and self.shares_held > amount:
+        elif action_type <= 2 and self.shares_held >= amount:
             # sell
             flag = 1
             shares_sold = amount
@@ -163,6 +166,17 @@ class Market(gym.Env):
 
     def _take_action(self, actions):
         self.balances_of_each_action = [0, 0]
+        # flag = 0
+        # if self.current_step == 2999:
+        #     flag = 1
+        #     print("final")
+        #     actions[1] = 0
+        #     actions[5] = self.shares_held
+        #
+        #     self._take_one_action(np.array([actions[0], actions[2], actions[4]]), 0)
+        #     self._take_one_action(np.array([actions[1], actions[3], actions[5]]), 1)
+
+
         if actions[2] < actions[3]:
             self._take_one_action(np.array([actions[0], actions[2], actions[4]]), 0)
             self._take_one_action(np.array([actions[1], actions[3], actions[5]]), 1)
@@ -193,19 +207,23 @@ class Market(gym.Env):
 
         # reward = self.balance/INITIAL_ACCOUNT_BALANCE
         delay_modifier = (self.current_step / MAX_STEPS)
-        reward = (self.balance * delay_modifier + (self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (self.balance - self.last_balance))/(3 * INITIAL_ACCOUNT_BALANCE)
+        reward = ((self.balance - INITIAL_ACCOUNT_BALANCE) * delay_modifier + (
+                    self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (
+                              self.balance - self.last_balance)) / (3 * INITIAL_ACCOUNT_BALANCE)
 
         self.reward = reward
 
         terminated = False
-        if self.current_step == MAX_STEPS - 1:
+        if self.current_step == MAX_STEPS:
             terminated = True
         # terminated = self.current_step >= MAX_STEPS
 
         truncated = bool(self.net_worth <= 0)
 
-        obs = self._next_observation()
+        obs = []
 
+        if terminated is False:
+            obs = self._next_observation()
 
         return obs, reward, terminated, truncated, self._get_info()
 
