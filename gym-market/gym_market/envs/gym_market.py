@@ -11,9 +11,9 @@ INITIAL_ACCOUNT_BALANCE = 10000
 
 MAX_STEPS = 3000
 
-MAX_NUM_SHARES = 100
+MAX_NUM_SHARES = 200
 
-MAX_SHARE_PRICE = 1000
+MAX_SHARE_PRICE = 2000
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,11 @@ class Market(gym.Env):
     metadata = {'render_modes': ['human']}
 
     def _get_info(self):
-        return {}
+        if self.current_step == 3000:
+            info = {"balance": self.balance}
+            return info
+        else:
+            return {}
 
     def _read_data(self, lob_data_dir, tape_data_dir):
         lob_data = pd.read_csv(lob_data_dir).dropna()
@@ -74,7 +78,7 @@ class Market(gym.Env):
         self.action_history = np.zeros(18)
         self.trade_data = []
         self.last_balance = INITIAL_ACCOUNT_BALANCE
-        # self.sell_reward = [0, 0]
+        self.sell_reward = [0, 0]
 
     def _next_observation(self):
         zeros_array = np.zeros(183)  # there are 61 features in lob_data
@@ -111,8 +115,9 @@ class Market(gym.Env):
         amount = int((action[2] + 1) * 5)
         flag = 0
 
-        # if action_number == 0:
-        #     self.sell_reward = []
+        if action_number == 0:
+            self.sell_reward = [0, 0]
+
         if self.current_step == 2999 and action_number == 1:
             action_type = 2
             amount = self.shares_held
@@ -139,6 +144,8 @@ class Market(gym.Env):
             self.shares_held -= shares_sold
             self.total_shares_sold += shares_sold
             self.total_sales_value += shares_sold * current_price
+
+            self.sell_reward[action_number] = (current_price - self.cost_basis) * shares_sold
 
             # sell_reward = shares_sold * (current_price - self.cost_basis)
             # self.sell_reward[action_number] = sell_reward
@@ -176,7 +183,6 @@ class Market(gym.Env):
         #     self._take_one_action(np.array([actions[0], actions[2], actions[4]]), 0)
         #     self._take_one_action(np.array([actions[1], actions[3], actions[5]]), 1)
 
-
         if actions[2] < actions[3]:
             self._take_one_action(np.array([actions[0], actions[2], actions[4]]), 0)
             self._take_one_action(np.array([actions[1], actions[3], actions[5]]), 1)
@@ -207,9 +213,14 @@ class Market(gym.Env):
 
         # reward = self.balance/INITIAL_ACCOUNT_BALANCE
         delay_modifier = (self.current_step / MAX_STEPS)
-        reward = ((self.balance - INITIAL_ACCOUNT_BALANCE) * delay_modifier + (
-                    self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (
-                              self.balance - self.last_balance)) / (3 * INITIAL_ACCOUNT_BALANCE)
+        # reward = ((self.balance - INITIAL_ACCOUNT_BALANCE) * delay_modifier + (
+        #             self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (
+        #                       self.balance - self.last_balance)) / (3 * INITIAL_ACCOUNT_BALANCE)
+        # reward = ((self.balance - INITIAL_ACCOUNT_BALANCE) * delay_modifier) / INITIAL_ACCOUNT_BALANCE
+
+        # reward = ((self.balances_of_each_action[1] - self.balances_of_each_action[0]) + (self.balance - self.last_balance))/INITIAL_ACCOUNT_BALANCE
+
+        reward = (self.sell_reward[0] + self.sell_reward[1]) / INITIAL_ACCOUNT_BALANCE
 
         self.reward = reward
 
@@ -239,7 +250,7 @@ class Market(gym.Env):
         self.current_step = 0
 
         self.trade_data = []
-
+        self.sell_reward = [0, 0]
         self.last_balance = INITIAL_ACCOUNT_BALANCE
         return self._next_observation(), self._get_info()
 
